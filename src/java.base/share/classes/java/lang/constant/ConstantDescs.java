@@ -286,6 +286,13 @@ public final class ConstantDescs {
     static final DirectMethodHandleDesc MHD_METHODHANDLE_ASTYPE
             = MethodHandleDesc.ofMethod(Kind.VIRTUAL, CD_MethodHandle, "asType",
                                         MethodTypeDesc.of(CD_MethodHandle, CD_MethodType));
+
+    static {
+        // just a dummy call to DynamicConstantDesc.ofCanonical
+        DynamicConstantDesc.ofCanonical(ConstantDescs.BSM_ENUM_CONSTANT, "SHOW_REFLECT_FRAMES",
+                ClassDesc.of("java.lang.StackWalker").nested("Option"), new ConstantDesc[0]);
+    }
+
     /**
      * Returns a {@link MethodHandleDesc} corresponding to a bootstrap method for
      * an {@code invokedynamic} callsite, which is a static method whose leading
