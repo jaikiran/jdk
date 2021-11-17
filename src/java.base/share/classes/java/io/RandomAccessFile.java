@@ -1198,10 +1198,10 @@ public class RandomAccessFile implements DataOutput, DataInput, Closeable {
             // This is for j.u.z.ZipFile to support OPEN_DELETE and FILE_SHARE_DELETE.
             // The O_TEMPORARY and the FILE_SHARE_DELETE flags are only implemented/supported
             // on windows.
-            public RandomAccessFile openAndDelete(File file, String mode)
+            public RandomAccessFile open(File file, String mode, boolean openAndDelete)
                 throws IOException
             {
-                return new RandomAccessFile(file, mode, true, true);
+                return new RandomAccessFile(file, mode, openAndDelete, true);
             }
         });
     }

@@ -1308,13 +1308,18 @@ public class ZipFile implements ZipConstants, Closeable {
             if (toDelete) {
                 if (isWindows) {
                     this.zfile = SharedSecrets.getJavaIORandomAccessFileAccess()
-                                              .openAndDelete(key.file, "r");
+                                              .open(key.file, "r", true);
                 } else {
                     this.zfile = new RandomAccessFile(key.file, "r");
                     key.file.delete();
                 }
             } else {
-                this.zfile = new RandomAccessFile(key.file, "r");
+                if (isWindows) {
+                    this.zfile = SharedSecrets.getJavaIORandomAccessFileAccess()
+                            .open(key.file, "r", false);
+                } else {
+                    this.zfile = new RandomAccessFile(key.file, "r");
+                }
             }
             try {
                 initCEN(-1);
