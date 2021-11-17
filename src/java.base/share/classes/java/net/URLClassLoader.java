@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.jar.Attributes;
 import java.util.jar.Attributes.Name;
+import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 import jdk.internal.loader.Resource;
@@ -293,8 +294,14 @@ public class URLClassLoader extends SecureClassLoader implements Closeable {
             }
             URLConnection urlc = url.openConnection();
             InputStream is = urlc.getInputStream();
-            if (urlc instanceof sun.net.www.protocol.file.FileURLConnection
-                    || urlc instanceof JarURLConnection) {
+            if (urlc instanceof JarURLConnection juc) {
+                JarFile jar = juc.getJarFile();
+                synchronized (closeables) {
+                    if (!closeables.containsKey(jar)) {
+                        closeables.put(jar, null);
+                    }
+                }
+            } else if (urlc instanceof sun.net.www.protocol.file.FileURLConnection) {
                 synchronized (closeables) {
                     closeables.put(is, null);
                 }
