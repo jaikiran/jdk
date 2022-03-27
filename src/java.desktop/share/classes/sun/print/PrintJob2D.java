@@ -450,8 +450,8 @@ public class PrintJob2D extends PrintJob implements Printable, Runnable {
 
             Media media = (Media)attributes.get(Media.class);
             MediaSize mediaSize =  null;
-            if (media != null  && media instanceof MediaSizeName) {
-                mediaSize = MediaSize.getMediaSizeForName((MediaSizeName)media);
+            if (media instanceof MediaSizeName msn) {
+                mediaSize = MediaSize.getMediaSizeForName(msn);
             }
 
             Paper p = pageFormat.getPaper();
@@ -590,9 +590,9 @@ public class PrintJob2D extends PrintJob implements Printable, Runnable {
             pageAttributes.setPrintQuality(PrintQualityType.NORMAL);
         }
 
-        Media msn = (Media)attributes.get(Media.class);
-        if (msn != null && msn instanceof MediaSizeName) {
-            MediaType mType = unMapMedia((MediaSizeName)msn);
+        Media media = (Media)attributes.get(Media.class);
+        if (media instanceof MediaSizeName msn) {
+            MediaType mType = unMapMedia(msn);
 
             if (mType != null) {
                 pageAttributes.setMedia(mType);
@@ -940,7 +940,7 @@ public class PrintJob2D extends PrintJob implements Printable, Runnable {
      * Ends this print job once it is no longer referenced.
      * @see #end
      */
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings("removal")
     public void finalize() {
         end();
     }
@@ -966,7 +966,7 @@ public class PrintJob2D extends PrintJob implements Printable, Runnable {
      * @return PAGE_EXISTS if the page is rendered successfully
      *         or NO_SUCH_PAGE if {@code pageIndex} specifies a
      *         non-existent page.
-     * @exception java.awt.print.PrinterException
+     * @throws java.awt.print.PrinterException
      *         thrown when the print job is terminated.
      */
     public int print(Graphics graphics, PageFormat pageFormat, int pageIndex)

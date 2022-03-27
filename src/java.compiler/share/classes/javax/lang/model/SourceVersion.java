@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2005, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -39,9 +39,6 @@ import java.util.HashSet;
  * <p>Note that additional source version constants will be added to
  * model future releases of the language.
  *
- * @author Joseph D. Darcy
- * @author Scott Seligman
- * @author Peter von der Ah&eacute;
  * @since 1.6
  */
 public enum SourceVersion {
@@ -252,7 +249,15 @@ public enum SourceVersion {
      *
      * @since 18
      */
-    RELEASE_18;
+    RELEASE_18,
+
+    /**
+     * The version recognized by the Java Platform, Standard Edition
+     * 19.
+     *
+     * @since 19
+     */
+    RELEASE_19;
 
     // Note that when adding constants for newer releases, the
     // behavior of latest() and latestSupported() must be updated too.
@@ -261,7 +266,7 @@ public enum SourceVersion {
      * {@return the latest source version that can be modeled}
      */
     public static SourceVersion latest() {
-        return RELEASE_18;
+        return RELEASE_19;
     }
 
     private static final SourceVersion latestSupported = getLatestSupported();
@@ -276,7 +281,7 @@ public enum SourceVersion {
     private static SourceVersion getLatestSupported() {
         int intVersion = Runtime.version().feature();
         return (intVersion >= 11) ?
-            valueOf("RELEASE_" + Math.min(18, intVersion)):
+            valueOf("RELEASE_" + Math.min(19, intVersion)):
             RELEASE_10;
     }
 

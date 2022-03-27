@@ -78,7 +78,7 @@ public:
 };
 
 template <typename Closure, template <typename> class CardOrRanges>
-class G1HeapRegionRemSetMergeCardClosure : public G1CardSet::CardSetPtrClosure {
+class G1HeapRegionRemSetMergeCardClosure : public G1CardSet::ContainerPtrClosure {
   G1CardSet* _card_set;
   Closure& _cl;
   uint _log_card_regions_per_region;
@@ -98,11 +98,11 @@ public:
     _log_card_region_size(log_card_region_size) {
   }
 
-  void do_cardsetptr(uint card_region_idx, size_t num_occupied, G1CardSet::CardSetPtr card_set) override {
+  void do_containerptr(uint card_region_idx, size_t num_occupied, G1CardSet::ContainerPtr container) override {
     CardOrRanges<Closure> cl(_cl,
                              card_region_idx >> _log_card_regions_per_region,
                              (card_region_idx & _card_regions_per_region_mask) << _log_card_region_size);
-    _card_set->iterate_cards_or_ranges_in_container(card_set, cl);
+    _card_set->iterate_cards_or_ranges_in_container(container, cl);
   }
 };
 
@@ -110,7 +110,7 @@ template <class CardOrRangeVisitor>
 inline void HeapRegionRemSet::iterate_for_merge(CardOrRangeVisitor& cl) {
   G1HeapRegionRemSetMergeCardClosure<CardOrRangeVisitor, G1ContainerCardsOrRanges> cl2(&_card_set,
                                                                                        cl,
-                                                                                       _card_set.config()->log2_card_region_per_heap_region(),
+                                                                                       _card_set.config()->log2_card_regions_per_heap_region(),
                                                                                        _card_set.config()->log2_cards_per_card_region());
   _card_set.iterate_containers(&cl2, true /* at_safepoint */);
 }
@@ -118,18 +118,15 @@ inline void HeapRegionRemSet::iterate_for_merge(CardOrRangeVisitor& cl) {
 void HeapRegionRemSet::split_card(OopOrNarrowOopStar from, uint& card_region, uint& card_within_region) const {
   size_t offset = pointer_delta(from, _heap_base_address, 1);
   card_region = (uint)(offset >> _split_card_shift);
-  card_within_region = (uint)((offset & _split_card_mask) >> CardTable::card_shift);
+  card_within_region = (uint)((offset & _split_card_mask) >> CardTable::card_shift());
   assert(card_within_region < ((uint)1 << G1CardSetContainer::LogCardsPerRegionLimit), "must be");
 }
 
 void HeapRegionRemSet::add_reference(OopOrNarrowOopStar from, uint tid) {
-  RemSetState state = _state;
-  if (state == Untracked) {
-    return;
-  }
+  assert(_state != Untracked, "must be");
 
   uint cur_idx = _hr->hrm_index();
-  uintptr_t from_card = uintptr_t(from) >> CardTable::card_shift;
+  uintptr_t from_card = uintptr_t(from) >> CardTable::card_shift();
 
   if (G1FromCardCache::contains_or_replace(tid, cur_idx, from_card)) {
     // We can't check whether the card is in the remembered set - the card container
