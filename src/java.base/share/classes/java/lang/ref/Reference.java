@@ -188,7 +188,7 @@ public abstract sealed class Reference<T>
      *    inactive: null
      */
     private transient Reference<?> discovered;
-
+    private static final String marker = "****";
 
     /* High-priority thread to enqueue pending References
      */
@@ -198,13 +198,18 @@ public abstract sealed class Reference<T>
         }
 
         public void run() {
-            // pre-load and initialize Cleaner class so that we don't
-            // get into trouble later in the run loop if there's
-            // memory shortage while loading/initializing it lazily.
-            Unsafe.getUnsafe().ensureClassInitialized(Cleaner.class);
+            try {
+                // pre-load and initialize Cleaner class so that we don't
+                // get into trouble later in the run loop if there's
+                // memory shortage while loading/initializing it lazily.
+                Unsafe.getUnsafe().ensureClassInitialized(Cleaner.class);
 
-            while (true) {
-                processPendingReferences();
+                while (true) {
+                    processPendingReferences();
+                }
+            } finally {
+                System.err.println(state);
+                System.err.println(marker);
             }
         }
     }
@@ -231,11 +236,15 @@ public abstract sealed class Reference<T>
      */
     private void enqueueFromPending() {
         var q = queue;
+        state = 11;
         if (q != ReferenceQueue.NULL) q.enqueue(this);
+        state = 12;
     }
 
     private static final Object processPendingLock = new Object();
     private static boolean processPendingActive = false;
+
+    private static int state = 0;
 
     private static void processPendingReferences() {
         // Only the singleton reference processing thread calls
@@ -243,9 +252,11 @@ public abstract sealed class Reference<T>
         // These are separate operations to avoid a race with other threads
         // that are calling waitForReferenceProcessing().
         waitForReferencePendingList();
+        state = 1;
         Reference<?> pendingList;
         synchronized (processPendingLock) {
             pendingList = getAndClearReferencePendingList();
+            state = 2;
             processPendingActive = true;
         }
         while (pendingList != null) {
@@ -254,21 +265,29 @@ public abstract sealed class Reference<T>
             ref.discovered = null;
 
             if (ref instanceof Cleaner) {
+                state = 3;
                 ((Cleaner)ref).clean();
+                state = 4;
                 // Notify any waiters that progress has been made.
                 // This improves latency for nio.Bits waiters, which
                 // are the only important ones.
                 synchronized (processPendingLock) {
+                    state = 5;
                     processPendingLock.notifyAll();
+                    state = 6;
                 }
             } else {
+                state = 7;
                 ref.enqueueFromPending();
+                state = 8;
             }
         }
         // Notify any waiters of completion of current round.
         synchronized (processPendingLock) {
             processPendingActive = false;
+            state = 9;
             processPendingLock.notifyAll();
+            state = 10;
         }
     }
 
