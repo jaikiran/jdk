@@ -765,6 +765,8 @@ public class HttpClient extends NetworkClient {
             }
             throw stex;
         } catch (IOException e) {
+            System.err.println("Failed once due to " + e);
+            e.printStackTrace();
             closeServer();
             cachedHttpClient = false;
             if (!failedOnce && requests != null) {

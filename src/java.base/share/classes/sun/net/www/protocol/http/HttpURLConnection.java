@@ -1683,6 +1683,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
                 if (!streaming()) {
                     writeRequests();
                 }
+                System.out.println("Going to parseHTTP");
                 http.parseHTTP(responses, pi, this);
                 if (logger.isLoggable(PlatformLogger.Level.FINE)) {
                     logger.fine(responses.toString());
@@ -1698,7 +1699,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
                 }
 
                 inputStream = http.getInputStream();
-
+                System.out.println("Got input stream " + inputStream);
                 respCode = getResponseCode();
                 if (respCode == -1) {
                     disconnectInternal();
