@@ -84,9 +84,12 @@ public class ConnectionTest {
             URL url = URIBuilder.newBuilder().scheme("http").loopback().port(SERVER_PORT).toURL();
             System.out.println("Connecting to Server:" + url);
             HttpURLConnection httpUrlConnection = (HttpURLConnection) url.openConnection(Proxy.NO_PROXY);
+            System.out.println("Got URLConnection");
             InputStreamReader inputStreamReader = new InputStreamReader(httpUrlConnection.getInputStream());
+            System.out.println("Got InputStream");
             BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
             while (true) {
+                System.out.println("Reading line from server");
                 String readLine = bufferedReader.readLine();
                 if (readLine == null) {
                     break;
@@ -126,6 +129,7 @@ public class ConnectionTest {
             out.write("\r\n");
             out.write(BODY);
             out.flush();
+            System.out.println("Server wrote response");
         } catch (Throwable t) {
             System.err.println("Server received exception: " + t);
             t.printStackTrace();
@@ -133,14 +137,17 @@ public class ConnectionTest {
             System.out.println("Server exiting");
             if (serverSocket != null) {
                 serverSocket.close();
+                System.out.println("Server closed server socket " + serverSocket);
             }
 
             if (out != null) {
                 out.close();
+                System.out.println("Server closed outputstream");
             }
 
             if (socket != null) {
                 socket.close();
+                System.out.println("Server closed client socket " + socket);
             }
         }
     }
