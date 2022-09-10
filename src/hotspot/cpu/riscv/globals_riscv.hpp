@@ -58,6 +58,8 @@ define_pd_global(intx, StackRedPages, DEFAULT_STACK_RED_PAGES);
 define_pd_global(intx, StackShadowPages, DEFAULT_STACK_SHADOW_PAGES);
 define_pd_global(intx, StackReservedPages, DEFAULT_STACK_RESERVED_PAGES);
 
+define_pd_global(bool, VMContinuations, false);
+
 define_pd_global(bool, RewriteBytecodes,     true);
 define_pd_global(bool, RewriteFrequentPairs, true);
 
@@ -86,13 +88,13 @@ define_pd_global(intx, InlineSmallCode,          1000);
   product(bool, TraceTraps, false, "Trace all traps the signal handler")         \
   /* For now we're going to be safe and add the I/O bits to userspace fences. */ \
   product(bool, UseConservativeFence, true,                                      \
-          "Extend i for r and o for w in the pred/succ flags of fence;"          \
-          "Extend fence.i to fence.i + fence.")                                  \
+          "Extend i for r and o for w in the pred/succ flags of fence")          \
   product(bool, AvoidUnalignedAccesses, true,                                    \
           "Avoid generating unaligned memory accesses")                          \
   product(bool, UseRVV, false, EXPERIMENTAL, "Use RVV instructions")             \
-  product(bool, UseRVB, false, EXPERIMENTAL, "Use RVB instructions")             \
   product(bool, UseRVC, false, EXPERIMENTAL, "Use RVC instructions")             \
+  product(bool, UseZba, false, EXPERIMENTAL, "Use Zba instructions")             \
+  product(bool, UseZbb, false, EXPERIMENTAL, "Use Zbb instructions")             \
   product(bool, UseRVVForBigIntegerShiftIntrinsics, true,                        \
           "Use RVV instructions for left/right shift of BigInteger")
 

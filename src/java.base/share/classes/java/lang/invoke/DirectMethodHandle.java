@@ -30,7 +30,6 @@ import jdk.internal.vm.annotation.ForceInline;
 import jdk.internal.vm.annotation.Stable;
 import sun.invoke.util.ValueConversions;
 import sun.invoke.util.VerifyAccess;
-import sun.invoke.util.VerifyType;
 import sun.invoke.util.Wrapper;
 
 import java.util.Arrays;
@@ -416,9 +415,14 @@ sealed class DirectMethodHandle extends MethodHandle {
         }
         Object checkReceiver(Object recv) {
             if (!caller.isInstance(recv)) {
-                String msg = String.format("Receiver class %s is not a subclass of caller class %s",
-                                           recv.getClass().getName(), caller.getName());
-                throw new IncompatibleClassChangeError(msg);
+                if (recv != null) {
+                    String msg = String.format("Receiver class %s is not a subclass of caller class %s",
+                                               recv.getClass().getName(), caller.getName());
+                    throw new IncompatibleClassChangeError(msg);
+                } else {
+                    String msg = String.format("Cannot invoke %s with null receiver", member);
+                    throw new NullPointerException(msg);
+                }
             }
             return recv;
         }
@@ -444,9 +448,14 @@ sealed class DirectMethodHandle extends MethodHandle {
         @Override
         Object checkReceiver(Object recv) {
             if (!refc.isInstance(recv)) {
-                String msg = String.format("Receiver class %s does not implement the requested interface %s",
-                                           recv.getClass().getName(), refc.getName());
-                throw new IncompatibleClassChangeError(msg);
+                if (recv != null) {
+                    String msg = String.format("Receiver class %s does not implement the requested interface %s",
+                                               recv.getClass().getName(), refc.getName());
+                    throw new IncompatibleClassChangeError(msg);
+                } else {
+                    String msg = String.format("Cannot invoke %s with null receiver", member);
+                    throw new NullPointerException(msg);
+                }
             }
             return recv;
         }
@@ -619,12 +628,14 @@ sealed class DirectMethodHandle extends MethodHandle {
     private static final LambdaForm[] ACCESSOR_FORMS
             = new LambdaForm[afIndex(AF_LIMIT, false, 0)];
     static int ftypeKind(Class<?> ftype) {
-        if (ftype.isPrimitive())
+        if (ftype.isPrimitive()) {
             return Wrapper.forPrimitiveType(ftype).ordinal();
-        else if (VerifyType.isNullReferenceConversion(Object.class, ftype))
+        } else if (ftype.isInterface() || ftype.isAssignableFrom(Object.class)) {
+            // retyping can be done without a cast
             return FT_UNCHECKED_REF;
-        else
+        } else {
             return FT_CHECKED_REF;
+        }
     }
 
     /**
@@ -886,11 +897,11 @@ sealed class DirectMethodHandle extends MethodHandle {
                 case NF_constructorMethod:
                     return getNamedFunction("constructorMethod", OBJ_OBJ_TYPE);
                 case NF_UNSAFE:
-                    MemberName member = new MemberName(MethodHandleStatics.class, "UNSAFE", Unsafe.class, REF_getField);
+                    MemberName member = new MemberName(MethodHandleStatics.class, "UNSAFE", Unsafe.class, REF_getStatic);
                     return new NamedFunction(
-                            MemberName.getFactory().resolveOrFail(REF_getField, member,
+                            MemberName.getFactory().resolveOrFail(REF_getStatic, member,
                                                                   DirectMethodHandle.class, LM_TRUSTED,
-                                                                  NoSuchMethodException.class));
+                                                                  NoSuchFieldException.class));
                 case NF_checkReceiver:
                     member = new MemberName(DirectMethodHandle.class, "checkReceiver", OBJ_OBJ_TYPE, REF_invokeVirtual);
                     return new NamedFunction(
