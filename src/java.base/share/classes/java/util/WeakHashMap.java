@@ -36,9 +36,9 @@ import java.util.function.Consumer;
  * Hash table based implementation of the {@code Map} interface, with
  * <em>weak keys</em>.
  * An entry in a {@code WeakHashMap} will automatically be removed when
- * its key is no longer in ordinary use.  More precisely, the presence of a
+ * its key is no longer in ordinary use. More precisely, the presence of a
  * mapping for a given key will not prevent the key from being discarded by the
- * garbage collector, that is, made finalizable, finalized, and then reclaimed.
+ * garbage collector.
  * When a key has been discarded its entry is effectively removed from the map,
  * so this class behaves somewhat differently from other {@code Map}
  * implementations.
