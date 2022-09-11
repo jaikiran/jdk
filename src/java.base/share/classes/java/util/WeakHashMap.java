@@ -769,18 +769,24 @@ public class WeakHashMap<K,V>
     private abstract class HashIterator<T> implements Iterator<T> {
         private int index;
         private Entry<K,V> entry;
+        // points to the entry that was returned by the last call to nextEntry().
+        // we hold on to this entry only to use it in the remove(), which is expected
+        // to remove the entry that was last returned by the Iterator.next() method
         private Entry<K,V> lastReturned;
         private int expectedModCount = modCount;
 
         /**
          * Strong reference needed to avoid disappearance of key
-         * between hasNext and next
+         * between hasNext() and next(). This strong reference is unreferenced
+         * after a call to nextEntry().
          */
         private Object nextKey;
 
         /**
          * Strong reference needed to avoid disappearance of key
-         * between nextEntry() and any use of the entry
+         * between nextEntry() and any use of the entry. This strong reference is unreferenced
+         * after a call to remove() or after a call to hasNext() and there are no more entries
+         * to return (i.e. hasNext() returns false), whichever method is called first.
          */
         private Object currentKey;
 
@@ -799,6 +805,17 @@ public class WeakHashMap<K,V>
                 entry = e;
                 index = i;
                 if (e == null) {
+                    // we clear all the strong reference held to the key here since the iterator
+                    // can typically be considered as "logically no longer used" once hasNext()
+                    // returns false. continuing to hold any strong references (to the key) would
+                    // effectively mean those keys aren't eligible for GC, unless the iterator
+                    // instance itself gets GCed.
+                    // there are 2 member fields of this iterator implementation which hold strong
+                    // references to the keys:
+                    // 1) nextKey - when the code reaches at this current line it's guaranteed that
+                    //    nextKey is null.
+                    // 2) currentKey - this is the strong reference to key that we maintained when
+                    //    a call was made to nextEntry(). we clear that strong reference now.
                     currentKey = null;
                     return false;
                 }
@@ -818,7 +835,9 @@ public class WeakHashMap<K,V>
 
             lastReturned = entry;
             entry = entry.next;
+            // transfer over the strong reference to the key, from nextKey to currentKey
             currentKey = nextKey;
+            // set to null so that we can recompute the nextKey whenever hasNext() gets called next
             nextKey = null;
             return lastReturned;
         }
@@ -829,9 +848,19 @@ public class WeakHashMap<K,V>
             if (modCount != expectedModCount)
                 throw new ConcurrentModificationException();
 
-            WeakHashMap.this.remove(lastReturned.get());
+            final Object lastReturnedKey = lastReturned.get();
+            // "lastReturned" entry holds a weak reference to the key, so
+            // lastReturned.get() can return null if the reference was cleared.
+            // It's fine if the reference was cleared, we just skip the call to remove
+            // on the underlying map since the key (and thus the corresponding entry in the
+            // map) is already removed and that's what we anyway want.
+            if (lastReturnedKey != null) {
+                WeakHashMap.this.remove(lastReturnedKey);
+            }
             expectedModCount = modCount;
             lastReturned = null;
+            // clear the strong reference to the key of the entry that was returned by the previous
+            // call to nextEntry()
             currentKey = null;
         }
 
