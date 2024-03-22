@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2009, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -107,7 +107,8 @@ public class ZipFileSystemProvider extends FileSystemProvider {
             if (realPath == null) {  // newly created
                 realPath = path.toRealPath();
             }
-            filesystems.put(realPath, zipfs);
+            zipfs.fsRegistrationHandle = realPath;
+            filesystems.put(zipfs.fsRegistrationHandle, zipfs);
             return zipfs;
         }
     }
@@ -317,17 +318,14 @@ public class ZipFileSystemProvider extends FileSystemProvider {
     }
 
     //////////////////////////////////////////////////////////////
-    @SuppressWarnings("removal")
-    void removeFileSystem(Path zfpath, ZipFileSystem zfs) throws IOException {
+    boolean removeFileSystem(Path fsRegistrationHandle, ZipFileSystem zfs) {
+        // registration handle can be null if the ZipFileSystem was created
+        // using newFileSystem(Path ...) method instead of newFileSystem(URI ...) method
+        if (fsRegistrationHandle == null) {
+            return false;
+        }
         synchronized (filesystems) {
-            Path tempPath = zfpath;
-            PrivilegedExceptionAction<Path> action = tempPath::toRealPath;
-            try {
-                zfpath = AccessController.doPrivileged(action);
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getException();
-            }
-            filesystems.remove(zfpath, zfs);
+            return filesystems.remove(fsRegistrationHandle, zfs);
         }
     }
 }

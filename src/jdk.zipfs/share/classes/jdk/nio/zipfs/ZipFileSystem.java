@@ -139,6 +139,11 @@ class ZipFileSystem extends FileSystem {
 
     private final Set<String> supportedFileAttributeViews;
 
+    // if the ZipFileSystem was constructed through ZipFileSystemProvider.newFileSystem(URI ...)
+    // then the ZipFileSystemProvider will assign this registration handle using which the
+    // ZipFileSystemProvider tracks this ZipFileSystem instance
+    Path fsRegistrationHandle;
+
     ZipFileSystem(ZipFileSystemProvider provider,
                   Path zfpath,
                   Map<String, ?> env) throws IOException
@@ -523,7 +528,12 @@ class ZipFileSystem extends FileSystem {
                 }
             }
         }
-        provider.removeFileSystem(zfpath, this);
+        // if this zipfs was constructed through the ZipFileSystemProvider.newFileSystem(URI ...)
+        // then unregister this zipfs from the provider
+        if (this.fsRegistrationHandle != null) {
+            boolean removed = provider.removeFileSystem(this.fsRegistrationHandle, this);
+            assert removed : "zipfs could not be removed from ZipFileSystemProvider";
+        }
         if (ioe != null)
            throw ioe;
     }
