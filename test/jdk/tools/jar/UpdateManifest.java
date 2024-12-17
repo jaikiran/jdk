@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2006, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,210 +21,151 @@
  * questions.
  */
 
-/**
- * @test
- * @bug 6434207 6442687 6984046
- * @modules jdk.jartool
- * @summary Ensure that jar ufm actually updates the
- * existing jar file's manifest with contents of the
- * manifest file.
- */
-
 import java.io.*;
-import java.util.logging.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.spi.ToolProvider;
 import java.util.zip.*;
 
-public class UpdateManifest {
-    static PrintStream out = System.out;
-    static PrintStream err = System.err;
-    static boolean debug = true;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
-    static final ToolProvider JAR_TOOL = ToolProvider.findFirst("jar")
+/*
+ * @test
+ * @bug 6434207 6442687 6984046
+ * @summary Ensure that jar ufm actually updates the
+ *          existing jar file's manifest with contents of the
+ *          manifest file.
+ * @modules jdk.jartool
+ * @comment we use othervm because the test updates the logging
+ *          level of java.util.jar logger
+ * @run junit/othervm UpdateManifest
+ */
+public class UpdateManifest {
+    private static final Path SCRATCH_DIR = Path.of(".");
+    private static final ToolProvider JAR_TOOL = ToolProvider.findFirst("jar")
         .orElseThrow(() ->
             new RuntimeException("jar tool not found")
         );
 
-    static final Logger JAR_LOGGER = Logger.getLogger("java.util.jar");
+    private static final Logger JAR_LOGGER = Logger.getLogger("java.util.jar");
 
-    public static void realMain(String[] args) throws Throwable {
-        if (args.length == 0) {
-            debug = false;
-            File tmp = File.createTempFile("system-out-err", ".txt");
-            tmp.deleteOnExit();
-            out = new PrintStream(new FileOutputStream(tmp));
-            err = out;
-            // Attributes.read() can log a message we don't care to see.
-            JAR_LOGGER.setLevel(Level.OFF);
-        }
-
-        try { testManifestExistence(); } catch (Throwable t) { unexpected(t); }
-        try { testManifestContents(); } catch (Throwable t) { unexpected(t); }
+    @BeforeAll
+    static void disableJarLogger() {
+        // Attributes.read() can log a message we don't care to see in the test logs.
+        JAR_LOGGER.setLevel(Level.OFF);
     }
 
-    static void testManifestExistence() throws Throwable {
+    /*
+     * "jar cfe" command is used to create a JAR file with a specific Main-Class.
+     * Then "jar ufe" is run against that JAR to update the Main-Class. The test
+     * verifies that the Main-Class in the existing manifest is updated to the
+     * newer value.
+     */
+    @Test
+    public void testManifestExistence() throws Throwable {
         // Create a file to put in a jar file
-        File existence = createTextFile("existence");
-
+        Path existence = Files.createFile(Path.of("existence"));
         // Create a jar file, specifying a Main-Class
-        final String jarFileName = "um-existence.jar";
-        new File(jarFileName).delete(); // remove pre-existing first!
-        int status = JAR_TOOL.run(out, err, "cfe", jarFileName,
-                                  "Hello", existence.getPath());
-        check(status == 0);
-        checkManifest(jarFileName, "Hello");
+        final Path jarFile = Path.of("um-existence.jar");
+        Files.deleteIfExists(jarFile);  // remove (any) pre-existing JAR file first!
+        int status = JAR_TOOL.run(System.out, System.err, "cfe", jarFile.toString(),
+                                  "Hello", existence.toString());
+        assertEquals(0, status, "unexpected exit code of jar cfe command");
+        checkMainClass(jarFile, "Hello");
 
         // Update that jar file by changing the Main-Class
-        status = JAR_TOOL.run(out, err, "ufe", jarFileName, "Bye");
-        check(status == 0);
-        checkManifest(jarFileName, "Bye");
+        status = JAR_TOOL.run(System.out, System.err, "ufe", jarFile.toString(), "Bye");
+        assertEquals(0, status, "unexpected exit code of jar ufe command");
+        checkMainClass(jarFile, "Bye");
     }
 
-    static void testManifestContents() throws Throwable {
-        // Create some strings we expect to find in the updated manifest
+    /*
+     * "jar cfm" command is used to create a JAR file with a specific manifest file.
+     * Then "jar ufm" is run against that JAR with a different manifest file. The test
+     * verifies that the updated manifest file in the JAR will contain a manifest file
+     * which has its attributes merged from the first and the second manifest file.
+     */
+    @Test
+    public void testManifestContents() throws Throwable {
+        // Some attributes that we expect to find in the updated manifest
         final String animal =
             "Name: animal/marsupial";
         final String specTitle =
             "Specification-Title: Wombat";
 
         // Create a text file with manifest entries
-        File manifestOrig = File.createTempFile("manifestOrig", ".txt");
-        if (!debug) manifestOrig.deleteOnExit();
-        PrintWriter pw = new PrintWriter(manifestOrig);
-        pw.println("Manifest-Version: 1.0");
-        pw.println("Created-By: 1.7.0-internal (Oracle Corporation)");
-        pw.println("");
-        pw.println(animal);
-        pw.println(specTitle);
-        pw.close();
+        final Path manifestOrig = Files.createTempFile(SCRATCH_DIR, "manifestOrig", ".txt");
+        try (PrintWriter pw = new PrintWriter(manifestOrig.toFile())) {
+            pw.println("Manifest-Version: 1.0");
+            pw.println("Created-By: 1.7.0-internal (Oracle Corporation)");
+            pw.println("");
+            pw.println(animal);
+            pw.println(specTitle);
+        }
+        // an arbitrary file that will be added to the JAR file
+        final Path hello = Files.createFile(Path.of("hello"));
+        // Create a JAR file
+        final Path jarFile = Path.of("um-test.jar");
+        Files.deleteIfExists(jarFile); // remove (any) pre-existing JAR file first!
+        int status = JAR_TOOL.run(System.out, System.err, "cfm", jarFile.toString(),
+                                  manifestOrig.toString(), hello.toString());
+        assertEquals(0, status, "unexpected exit code of jar cfm command");
 
-        File hello = createTextFile("hello");
-
-        // Create a jar file
-        final String jarFileName = "um-test.jar";
-        new File(jarFileName).delete(); // remove pre-existing first!
-        int status = JAR_TOOL.run(out, err, "cfm", jarFileName,
-                                  manifestOrig.getPath(), hello.getPath());
-        check(status == 0);
-
-        // Create a new manifest, to use in updating the jar file.
-        File manifestUpdate = File.createTempFile("manifestUpdate", ".txt");
-        if (!debug) manifestUpdate.deleteOnExit();
-        pw = new PrintWriter(manifestUpdate);
         final String createdBy =
-            "Created-By: 1.7.0-special (Oracle Corporation)";
+                "Created-By: 1.7.0-special (Oracle Corporation)";
         final String specVersion =
-            "Specification-Version: 1.0.0.0";
-        pw.println(createdBy); // replaces line in the original
-        pw.println("");
-        pw.println(animal);
-        pw.println(specVersion); // addition to animal/marsupial section
-        pw.close();
+                "Specification-Version: 1.0.0.0";
+        // Create a new manifest, to use in updating the jar file.
+        final Path manifestUpdate = Files.createTempFile(SCRATCH_DIR, "manifestUpdate", ".txt");
+        try (PrintWriter pw = new PrintWriter(manifestUpdate.toFile())) {
+            pw.println(createdBy); // replaces line in the original
+            pw.println("");
+            pw.println(animal);
+            pw.println(specVersion); // addition to animal/marsupial section
+        }
 
         // Update jar file with manifest
-        status = JAR_TOOL.run(out, err, "ufm",
-                              jarFileName, manifestUpdate.getPath());
-        check(status == 0);
+        status = JAR_TOOL.run(System.out, System.err, "ufm",
+                              jarFile.toString(), manifestUpdate.toString());
+        assertEquals(0, status, "unexpected exit code of jar ufm command");
 
         // Extract jar, and verify contents of manifest file
-        File f = new File(jarFileName);
-        if (!debug) f.deleteOnExit();
-        ZipFile zf = new ZipFile(f);
-        ZipEntry ze = zf.getEntry("META-INF/MANIFEST.MF");
-        BufferedReader r = new BufferedReader(
-            new InputStreamReader(zf.getInputStream(ze)));
-        r.readLine(); // skip Manifest-Version
-        check(r.readLine().equals(createdBy));
-        r.readLine(); // skip blank line
-        check(r.readLine().equals(animal));
-        String s = r.readLine();
-        if (s.equals(specVersion)) {
-            check(r.readLine().equals(specTitle));
-        } else if (s.equals(specTitle)) {
-            check(r.readLine().equals(specVersion));
-        } else {
-            fail("did not match specVersion nor specTitle");
+        try (ZipFile zf = new ZipFile(jarFile.toFile())) {
+
+            ZipEntry ze = zf.getEntry("META-INF/MANIFEST.MF");
+            try (BufferedReader r = new BufferedReader(
+                    new InputStreamReader(zf.getInputStream(ze)))) {
+                r.readLine(); // skip Manifest-Version
+                assertEquals(createdBy, r.readLine(), "unexpected attribute in manifest");
+                r.readLine(); // skip blank line
+                assertEquals(animal, r.readLine(), "unexpected attribute in manifest");
+                final String s = r.readLine();
+                if (s.equals(specVersion)) {
+                    assertEquals(specTitle, r.readLine(), "unexpected attribute in manifest");
+                } else if (s.equals(specTitle)) {
+                    assertEquals(specVersion, r.readLine(), "unexpected attribute in manifest");
+                } else {
+                    fail("Line in manifest: " + s + " did not match specVersion nor specTitle");
+                }
+            }
         }
-        zf.close();
     }
 
-    // --------------------- Convenience ---------------------------
-
-    static File createTextFile(String name) throws Throwable {
-        // Create a text file to put in a jar file
-        File rc = File.createTempFile(name, ".txt");
-        if (!debug) rc.deleteOnExit();
-        PrintWriter pw = new PrintWriter(rc);
-        pw.println("hello, world");
-        pw.close();
-        return rc;
-    }
-
-    static void checkManifest(String jarFileName, String mainClass)
-                throws Throwable {
-        File f = new File(jarFileName);
-        if (!debug) f.deleteOnExit();
-        ZipFile zf = new ZipFile(f);
-        ZipEntry ze = zf.getEntry("META-INF/MANIFEST.MF");
-        BufferedReader r = new BufferedReader(
-            new InputStreamReader(zf.getInputStream(ze)));
-        String line = r.readLine();
-        while (line != null && !(line.startsWith("Main-Class:"))) {
-            line = r.readLine();
+    private static void checkMainClass(final Path jarFile, final String mainClass)
+            throws Throwable {
+        try (JarFile jf = new JarFile(jarFile.toFile())) {
+            final Manifest manifest = jf.getManifest();
+            assertNotNull(manifest, "Missing manifest file in " + jarFile);
+            final String actual = manifest.getMainAttributes().getValue("Main-Class");
+            assertEquals(mainClass, actual, "unexpected Main-Class in manifest");
         }
-        if (line == null) {
-            fail("Didn't find Main-Class in manifest");
-        } else {
-            check(line.equals("Main-Class: " + mainClass));
-        }
-        zf.close();
-    }
-
-    // --------------------- Infrastructure ---------------------------
-
-    static volatile int passed = 0, failed = 0;
-
-    static void pass() {
-        passed++;
-    }
-
-    static void fail() {
-        failed++;
-        Thread.dumpStack();
-    }
-
-    static void fail(String msg) {
-        System.out.println(msg);
-        fail();
-    }
-
-    static void unexpected(Throwable t) {
-        failed++;
-        t.printStackTrace();
-    }
-
-    static void check(boolean cond) {
-        if (cond)
-            pass();
-        else
-            fail();
-    }
-
-    static void equal(Object x, Object y) {
-        if ((x == null) ? (y == null) : x.equals(y))
-            pass();
-        else
-            fail(x + " not equal to " + y);
-    }
-
-    public static void main(String[] args) throws Throwable {
-        try {
-            realMain(args);
-        } catch (Throwable t) {
-            unexpected(t);
-        }
-        System.out.println("\nPassed = " + passed + " failed = " + failed);
-        if (failed > 0)
-            throw new AssertionError("Some tests failed");
     }
 }
