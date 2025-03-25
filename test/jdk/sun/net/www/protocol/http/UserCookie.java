@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2006, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,62 +24,67 @@
 /*
  * @test
  * @bug 6439651
- * @modules jdk.httpserver
- * @run main/othervm UserAuth
  * @summary Sending "Cookie" header with JRE 1.5.0_07 doesn't work anymore
+ * @modules jdk.httpserver
+ * @library /test/lib
+ * @run main/othervm UserCookie
  */
 
-import java.net.*;
-import com.sun.net.httpserver.*;
-import java.util.*;
-import java.io.*;
+import java.io.IOException;
+import java.net.CookieHandler;
+import java.net.CookieManager;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.util.List;
+
+import com.sun.net.httpserver.Headers;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
+import jdk.test.lib.net.URIBuilder;
+
 import static java.net.Proxy.NO_PROXY;
 
-public class UserCookie
-{
-    com.sun.net.httpserver.HttpServer httpServer;
-
-    public static void main(String[] args) {
-        new UserCookie();
-    }
-
-    public UserCookie() {
+public class UserCookie {
+    public static void main(String[] args) throws Exception {
+        final HttpServer server = startHttpServer();
         try {
-            startHttpServer();
-            doClient();
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
-        }
-    }
-
-    void doClient() {
-        try {
-            // set default CookieHandler to accept only accepts cookies from original server.
-            CookieHandler.setDefault(new CookieManager());
-
-            InetSocketAddress address = httpServer.getAddress();
-
-            URL url = new URL("http://" + address.getHostName() + ":" + address.getPort() + "/test/");
-            HttpURLConnection uc = (HttpURLConnection)url.openConnection(NO_PROXY);
-            uc.setRequestProperty("Cookie", "value=ValueDoesNotMatter");
-            int resp = uc.getResponseCode();
-
-            System.out.println("Response Code is " + resp);
-            if (resp != 200)
-                throw new RuntimeException("Failed: Cookie header was not retained");
-
-        } catch (IOException e) {
-            e.printStackTrace();
+            runTest(server);
         } finally {
-            httpServer.stop(1);
+            server.stop(0);
         }
     }
 
-     /**
-     * Http Server
+    private static void runTest(final HttpServer httpServer) throws Exception {
+        // set default CookieHandler to accept only accepts cookies from original server.
+        CookieHandler.setDefault(new CookieManager());
+
+        final InetSocketAddress address = httpServer.getAddress();
+        final URI uri = URIBuilder.newBuilder()
+                .scheme("http")
+                .host(address.getHostName())
+                .port(address.getPort())
+                .path("/test/")
+                .build();
+        System.out.println("issuing request to " + uri);
+        final HttpURLConnection uc = (HttpURLConnection) uri.toURL().openConnection(NO_PROXY);
+        uc.setRequestProperty("Cookie", "value=ValueDoesNotMatter");
+
+        final int resp = uc.getResponseCode();
+        System.out.println("Response Code is " + resp);
+        if (resp != 200) {
+            throw new RuntimeException("Failed: Cookie header was not retained, status code: "
+                    + resp);
+        }
+    }
+
+    /**
+     * Start and return a HttpServer
      */
-    void startHttpServer() throws IOException {
-        InetAddress address = InetAddress.getLocalHost();
+    private static HttpServer startHttpServer() throws IOException {
+        final InetAddress address = InetAddress.getLocalHost();
         if (!InetAddress.getByName(address.getHostName()).equals(address)) {
             // if this happens then we should possibly change the client
             // side to use the address literal in its URL instead of
@@ -90,29 +95,42 @@ public class UserCookie
                                   + " not to "
                                   + address + ": check host configuration.");
         }
-
-        httpServer = com.sun.net.httpserver.HttpServer.create(new InetSocketAddress(address, 0), 0);
-
-        // create HttpServer context
-        HttpContext ctx = httpServer.createContext("/test/", new MyHandler());
-
-        httpServer.start();
+        final HttpServer httpServer = HttpServer.create(new InetSocketAddress(address, 0), 0);
+        try {
+            // create HttpServer context
+            httpServer.createContext("/test/", new MyHandler());
+            httpServer.start();
+        } catch (Exception e) {
+            httpServer.stop(0);
+            throw e;
+        }
+        return httpServer;
     }
 
-    class MyHandler implements HttpHandler {
-        public void handle(HttpExchange t) throws IOException {
-            Headers reqHeaders = t.getRequestHeaders();
-
-            List<String> cookie = reqHeaders.get("Cookie");
-
-            if (cookie == null || !cookie.get(0).equals("value=ValueDoesNotMatter"))
-                t.sendResponseHeaders(400, -1);
-
-            t.sendResponseHeaders(200, -1);
+    private static class MyHandler implements HttpHandler {
+        @Override
+        public void handle(final HttpExchange t) throws IOException {
+            final Headers reqHeaders = t.getRequestHeaders();
+            final List<String> cookie = reqHeaders.get("Cookie");
+            final int statusCode;
+            if (cookie == null) {
+                // missing cookie
+                System.out.println("missing cookie in request " + t.getRequestURI());
+                statusCode = 400;
+            } else {
+                final String cookieVal = cookie.get(0);
+                if (!cookieVal.equals("value=ValueDoesNotMatter")) {
+                    // unexpected value
+                    System.out.println("unexpected cookie: \"" + cookieVal + "\" in request "
+                            + t.getRequestURI());
+                    statusCode = 400;
+                } else {
+                    // expected cookie val
+                    statusCode = 200;
+                }
+            }
+            t.sendResponseHeaders(statusCode, -1);
             t.close();
         }
     }
-
-
-
 }
