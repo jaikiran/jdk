@@ -28,6 +28,9 @@
 #include "runtime/os.hpp"
 
 // Bsd_OS defines the interface to Bsd operating systems
+#ifdef __APPLE__
+int macos_determine_product_version(char* product_version, size_t size);
+#endif
 
 class os::Bsd {
   friend class os;

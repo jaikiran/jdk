@@ -1358,8 +1358,7 @@ void os::get_summary_os_info(char* buf, size_t buflen) {
 
 #ifdef __APPLE__
   char osproductversion[100];
-  size_t sz = sizeof(osproductversion);
-  int ret = sysctlbyname("kern.osproductversion", osproductversion, &sz, nullptr, 0);
+  const int ret = macos_determine_product_version(osproductversion, sizeof(osproductversion));
   if (ret == 0) {
     char build[100];
     size = sizeof(build);
