@@ -240,10 +240,11 @@ public class DeflaterOutputStream extends FilterOutputStream {
      * Writes a byte to the compressed output stream. This method will
      * block until the byte can be written.
      * @param b the byte to be written
-     * @throws    IOException if an I/O error has occurred
+     * @throws    IOException if an I/O error has occurred or the stream is closed
      */
     @Override
     public void write(int b) throws IOException {
+        ensureOpen();
         byte[] buf = new byte[1];
         buf[0] = (byte)(b & 0xff);
         write(buf, 0, 1);
@@ -255,10 +256,11 @@ public class DeflaterOutputStream extends FilterOutputStream {
      * @param b the data to be written
      * @param off the start offset of the data
      * @param len the length of the data
-     * @throws    IOException if an I/O error has occurred
+     * @throws    IOException if an I/O error has occurred or the stream is closed
      */
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
+        ensureOpen();
         if (def.finished()) {
             throw new IOException("write beyond end of stream");
         }
@@ -279,9 +281,10 @@ public class DeflaterOutputStream extends FilterOutputStream {
      * Finishes writing compressed data to the output stream without closing
      * the underlying stream. Use this method when applying multiple filters
      * in succession to the same output stream.
-     * @throws    IOException if an I/O error has occurred
+     * @throws    IOException if an I/O error has occurred or the stream is closed
      */
     public void finish() throws IOException {
+        ensureOpen();
         if (!def.finished()) {
             try{
                 def.finish();
@@ -304,8 +307,10 @@ public class DeflaterOutputStream extends FilterOutputStream {
      */
     @Override
     public void close() throws IOException {
-        if (!closed) {
-            closed = true;
+        if (closed) {
+            return;
+        }
+        try {
             IOException finishException = null;
             try {
                 finish();
@@ -329,14 +334,17 @@ public class DeflaterOutputStream extends FilterOutputStream {
                     }
                 }
             }
+        } finally {
+            closed = true;
         }
     }
 
     /**
      * Writes next block of compressed data to the output stream.
-     * @throws IOException if an I/O error has occurred
+     * @throws IOException if an I/O error has occurred or the stream is closed
      */
     protected void deflate() throws IOException {
+        ensureOpen();
         int len = def.deflate(buf, 0, buf.length);
         if (len > 0) {
             out.write(buf, 0, len);
@@ -354,12 +362,13 @@ public class DeflaterOutputStream extends FilterOutputStream {
      * flushes the output stream. Otherwise this method only flushes the
      * output stream without flushing the {@code compressor}.
      *
-     * @throws IOException if an I/O error has occurred
+     * @throws IOException if an I/O error has occurred or the stream is closed
      *
      * @since 1.7
      */
     @Override
     public void flush() throws IOException {
+        ensureOpen();
         if (syncFlush && !def.finished()) {
             int len = 0;
             // For SYNC_FLUSH, the Deflater.deflate() expects the callers
@@ -376,5 +385,14 @@ public class DeflaterOutputStream extends FilterOutputStream {
             }
         }
         out.flush();
+    }
+
+    /**
+     * Check to make sure that this stream has not been closed
+     */
+    private void ensureOpen() throws IOException {
+        if (closed) {
+            throw new IOException("Stream closed");
+        }
     }
 }
