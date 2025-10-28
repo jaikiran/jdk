@@ -41,7 +41,6 @@
  *                     -Dsimpleget.chunks=16384
  *                     -Djdk.httpclient.retryOnStreamlimit=5
  *                     -Djdk.httpclient.redirects.retrylimit=6
- *                     -Djdk.httpclient.quic.defaultMTU=16336
  *                      H3SimpleGet
  */
 
@@ -68,7 +67,6 @@
  *                     -Dsimpleget.chunks=16384
  *                     -Djdk.httpclient.retryOnStreamlimit=5
  *                     -Djdk.httpclient.redirects.retrylimit=6
- *                     -Djdk.httpclient.quic.defaultMTU=16336
  *                      H3SimpleGet
  */
 
@@ -93,7 +91,6 @@
  *                     -Dsimpleget.chunks=16384
  *                     -Djdk.httpclient.retryOnStreamlimit=5
  *                     -Djdk.httpclient.redirects.retrylimit=6
- *                     -Djdk.httpclient.quic.defaultMTU=16336
  *                      H3SimpleGet
  */
 
