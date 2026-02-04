@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2001, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -172,6 +172,7 @@ public class URLJarFile extends JarFile {
             this.je = je;
         }
 
+        @Override
         public Attributes getAttributes() throws IOException {
             if (URLJarFile.this.isSuperMan()) {
                 Map<String, Attributes> e = URLJarFile.this.superEntries;
@@ -184,14 +185,14 @@ public class URLJarFile extends JarFile {
             return null;
         }
 
+        @Override
         public java.security.cert.Certificate[] getCertificates() {
-            Certificate[] certs = je.getCertificates();
-            return certs == null? null: certs.clone();
+            return je.getCertificates();
         }
 
+        @Override
         public CodeSigner[] getCodeSigners() {
-            CodeSigner[] csg = je.getCodeSigners();
-            return csg == null? null: csg.clone();
+            return je.getCodeSigners();
         }
     }
 
